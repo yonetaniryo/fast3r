@@ -247,7 +247,7 @@ class Fast3R(nn.Module,
         }
         freeze_all_params(to_be_frozen[freeze])
 
-    def _encode_images(self, views):
+    def _encode_images(self, views, chunk_size=400):
         B = views[0]["img"].shape[0]
 
         # Check if all images have the same shape
@@ -261,8 +261,20 @@ class Fast3R(nn.Module,
                 dim=0
             )  # Shape: [num_views * B, 2]
 
-            # Encode all images in a single batch
-            feats, pos = self.encoder(imgs, true_shapes)
+            # Encode images in chunks to prevent OOM
+            num_chunks = (imgs.shape[0] + chunk_size - 1) // chunk_size
+            feats_chunks = []
+            pos_chunks = []
+            
+            for i in range(num_chunks):
+                start_idx = i * chunk_size
+                end_idx = min((i + 1) * chunk_size, imgs.shape[0])
+                chunk_feats, chunk_pos = self.encoder(imgs[start_idx:end_idx], true_shapes[start_idx:end_idx])
+                feats_chunks.append(chunk_feats)
+                pos_chunks.append(chunk_pos)
+            
+            feats = torch.cat(feats_chunks, dim=0)
+            pos = torch.cat(pos_chunks, dim=0)
 
             # Split the encoded features and positions back into individual views
             encoded_feats = torch.split(feats, B, dim=0)
@@ -294,13 +306,19 @@ class Fast3R(nn.Module,
 
         Returns:
             list[dict]: a list of results for each view
+            dict: profiling information (if profiling=True)
         """
+        # Initialize profiling dict
+        profiling_info = {} if profiling else None
+        
         # encode the images --> B,S,D
         encode_images_start_time = time.time()
         encoded_feats, positions, shapes = self._encode_images(views)
         encode_images_end_time = time.time()
         if profiling:
-            print(f"encode_images time: {encode_images_end_time - encode_images_start_time}")
+            encode_time = encode_images_end_time - encode_images_start_time
+            profiling_info["encode_images_time"] = encode_time
+            print(f"encode_images time: {encode_time}")
         if encode_images_end_time - encode_images_start_time > 20:
             print(f"something is wrong with the encoder, it took: {encode_images_end_time - encode_images_start_time}")
             # print the image and true_shape
@@ -312,7 +330,7 @@ class Fast3R(nn.Module,
         num_images = len(views)
         B, _, _ = encoded_feats[0].shape
 
-        different_resolution_across_views = not all(encoded_feats[0].shape[1] == encoded_feat.shape[1] for encoded_feat in encoded_feats)
+        different_resolution_across_views = not all(torch.equal(shapes[0], shape) for shape in shapes)
 
         # Initialize an empty list to collect image IDs for each patch.
         # Note that at inference time, different views may have different number of patches.
@@ -327,16 +345,18 @@ class Fast3R(nn.Module,
         # Repeat the image_ids list B times and reshape it to match the expected shape
         image_ids = torch.tensor(image_ids * B).reshape(B, -1).to(encoded_feats[0].device)
         if profiling:
-            print(f"pos emb time: {time.time() - pos_emb_start_time}")
+            pos_emb_time = time.time() - pos_emb_start_time
+            profiling_info["pos_emb_time"] = pos_emb_time
+            print(f"pos emb time: {pos_emb_time}")
 
         # combine all ref images into object-centric representation
         if profiling:
-            torch.cuda.synchronize()
             decoder_start_time = time.time()
         dec_output = self.decoder(encoded_feats, positions, image_ids)
         if profiling:
-            torch.cuda.synchronize()
-            print(f"decoder time: {time.time() - decoder_start_time}")
+            decoder_time = time.time() - decoder_start_time
+            profiling_info["decoder_time"] = decoder_time
+            print(f"decoder time: {decoder_time}")
 
         ################## Forward pass through the head ##################
         # TODO: optimize this
@@ -374,7 +394,10 @@ class Fast3R(nn.Module,
                 gathered_outputs_list.append(layer_output)
 
         if profiling:
-            print(f"head prepare input time: {time.time() - head_prepare_input_start_time}")
+            head_prepare_input_time = time.time() - head_prepare_input_start_time
+            profiling_info["head_prepare_input_time"] = head_prepare_input_time
+            print(f"head prepare input time: {head_prepare_input_time}")
+        
         head_forward_start_time = time.time()
         with profiler.record_function("head: forward pass"):
             if different_resolution_across_views or self.training:
@@ -457,10 +480,17 @@ class Fast3R(nn.Module,
                             if 'conf' in local_result:
                                 final_results[img_id]['conf_local'] = local_result['conf'][img_id * B:(img_id + 1) * B]
         if profiling:
-            print(f"head forward time: {time.time() - head_forward_start_time}")
+            torch.cuda.synchronize()
+            end_time = time.time()
+            profiling_info["head_forward_time"] = end_time - head_forward_start_time
+            print(f"head forward time: {end_time - head_forward_start_time}")
+            profiling_info["total_time"] = end_time - encode_images_start_time
+            print(f"total Fast3R forward time: {end_time - encode_images_start_time}")
+
         if profiling:
-            print(f"total Fast3R forward time: {time.time() - encode_images_start_time}")
-        return final_results
+            return final_results, profiling_info
+        else:
+            return final_results
 
 class CroCoEncoder(nn.Module):
     def __init__(

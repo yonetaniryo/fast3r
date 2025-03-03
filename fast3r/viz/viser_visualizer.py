@@ -175,7 +175,7 @@ def bind_update(widget, update_func):
     widget.on_update(lambda _: update_func())
 
 # ----------------- Main Visualization Function -----------------
-def start_visualization(output, min_conf_thr_percentile=10, global_conf_thr_value_to_drop_view=1.5, port=8020):
+def start_visualization(output, min_conf_thr_percentile=10, global_conf_thr_value_to_drop_view=1.5, port=8020, point_size=0.0004):
     server = viser.ViserServer(host='127.0.0.1', port=port)
     server.gui.set_panel_label("Show Controls")
     server.gui.configure_theme(control_layout="floating", control_width="medium", show_logo=False)
@@ -201,7 +201,7 @@ def start_visualization(output, min_conf_thr_percentile=10, global_conf_thr_valu
 
     # ----------------- Grouped GUI Controls -----------------
     with server.gui.add_folder("Point and Camera Options", expand_by_default=False):
-        gui_point_size = server.gui.add_slider("Point Size", min=1e-6, max=0.002, step=1e-5, initial_value=0.0004)
+        gui_point_size = server.gui.add_slider("Point Size", min=1e-6, max=0.002, step=1e-5, initial_value=point_size)
         gui_frustum_size_percent = server.gui.add_slider("Camera Size (%)", min=0.1, max=10.0, step=0.1, initial_value=2.0)
         gui_mask_sky = server.gui.add_checkbox("Mask Sky", True)
         gui_show_confidence_color = server.gui.add_checkbox("Show Confidence", False)

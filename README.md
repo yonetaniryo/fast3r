@@ -26,7 +26,7 @@ git clone https://github.com/facebookresearch/fast3r
 cd fast3r
 
 # create conda environment
-conda create -n fast3r python=3.11 cmake=3.14.0
+conda create -n fast3r python=3.11 cmake=3.14.0 -y
 conda activate fast3r
 
 # install PyTorch (adjust cuda version according to your system)

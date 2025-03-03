@@ -38,7 +38,7 @@ global_manager_resp_queue = None
 # -------------------------------
 # run_viser_server
 # -------------------------------
-def run_viser_server(output, min_conf_thr_percentile, global_conf_thr_value_to_drop_view, pipe_conn):
+def run_viser_server(pipe_conn, output, min_conf_thr_percentile, global_conf_thr_value_to_drop_view, point_size=0.0004):
     """
     Launches the visualization server and sends its share URL.
     """
@@ -47,6 +47,7 @@ def run_viser_server(output, min_conf_thr_percentile, global_conf_thr_value_to_d
             output=output,
             min_conf_thr_percentile=min_conf_thr_percentile,
             global_conf_thr_value_to_drop_view=global_conf_thr_value_to_drop_view,
+            point_size=point_size,
         )
         share_url = server.request_share_url()
         pipe_conn.send({"share_url": share_url})
@@ -99,10 +100,11 @@ class ViserServerManager:
                     p = mp.Process(
                         target=run_viser_server,
                         args=(
+                            child_conn,
                             output,
                             cmd.get("min_conf_thr_percentile", 10),
                             cmd.get("global_conf_thr_value_to_drop_view", 1.5),
-                            child_conn,
+                            cmd.get("point_size", 0.0004),
                         )
                     )
                     p.start()
@@ -250,39 +252,6 @@ def start_manager():
 
 
 # -------------------------------
-# get_reconstructed_scene
-# -------------------------------
-def get_reconstructed_scene(model, device, silent, image_size, filelist,
-                            profiling=False, dtype=torch.float32,
-                            rotate_clockwise_90=False,
-                            crop_to_landscape=False):
-    """
-    Loads images, runs inference, and returns the output.
-    
-    Returns: dict with keys 'preds' and 'views'.
-    """
-    imgs = load_images(
-        filelist,
-        size=image_size,
-        verbose=not silent,
-        rotate_clockwise_90=rotate_clockwise_90,
-        crop_to_landscape=crop_to_landscape,
-    )
-    start_time = time.time()
-    output = inference(
-        imgs,
-        model,
-        device,
-        dtype=dtype,
-        verbose=not silent,
-        profiling=profiling,
-    )
-    end_time = time.time()
-    print(f"Inference time elapsed: {end_time - start_time:.2f} seconds")
-    return output
-
-
-# -------------------------------
 # load_model
 # -------------------------------
 def load_model(checkpoint_dir, device: torch.device):
@@ -328,12 +297,19 @@ def update_gallery(files):
 # -------------------------------
 def process_images(uploaded_files, video_file, state,
                    model, lit_module, device,
-                   global_manager_req_queue, global_manager_resp_queue, output_dir, examples_dir):
+                   global_manager_req_queue, global_manager_resp_queue, 
+                   output_dir, examples_dir,
+                   image_size=512, rotate_clockwise_90=False, crop_to_landscape=False):
     """
     Processes input images/video:
       - Saves files to the output directory (unless it's an example)
       - Runs model inference.
       - Launches the visualization server.
+    
+    Args:
+        image_size: Resolution to resize images to (224 or 512)
+        rotate_clockwise_90: Whether to rotate images 90 degrees clockwise
+        crop_to_landscape: Whether to crop images to landscape orientation
     
     This function yields a consistent 6-tuple on every update:
       1. loading_message: HTML
@@ -437,28 +413,56 @@ def process_images(uploaded_files, video_file, state,
         gr.HTML(visible=False),
         gr.Column(visible=False),
         gr.HTML(visible=False),
-        f"Processing {len(filelist)} images...\nRunning model inference...",
+        f"Processing {len(filelist)} images...\nLoading and cropping images...",
         state,
     )
     
     end_image = time.time()
     image_prep_time = end_image - start_total
     
-    # Run inference.
-    start_inference = time.time()
-    output_dict = get_reconstructed_scene(model, device, silent=False, image_size=512, filelist=filelist,
-                                          profiling=True, dtype=torch.float32)
-    end_inference = time.time()
-    model_forward_time = end_inference - start_inference
+    # Load and resize images
+    start_load_time = time.time()
+    
+    imgs = load_images(
+        filelist,
+        size=image_size,
+        verbose=True,
+        rotate_clockwise_90=rotate_clockwise_90,
+        crop_to_landscape=crop_to_landscape,
+    )
+    end_load_time = time.time()
+    load_time = end_load_time - start_load_time
+    print(f"Image loading and cropping time: {load_time:.2f} seconds")
     
     yield (
         gr.update(),
         gr.update(),
         gr.update(),
         gr.update(),
-        f"Processing {len(filelist)} images...\nModel inference time: {model_forward_time:.2f} sec.\nPreparing visualization...",
+        f"Processing {len(filelist)} images...\nImage loading and cropping time: {load_time:.2f} sec.\nRunning model inference...",
         state,
     )
+    
+    # Run inference directly
+    output_dict, profiling_info = inference(
+        imgs,
+        model,
+        device,
+        dtype=torch.float32,
+        verbose=True,
+        profiling=True,
+    )
+    model_forward_time = profiling_info['total_time']
+
+    yield (
+        gr.update(),
+        gr.update(),
+        gr.update(),
+        gr.update(),
+        f"Processing {len(filelist)} images...\nImage loading and cropping time: {load_time:.2f} sec.\nModel inference time: {model_forward_time:.2f} sec.\nPreparing visualization...",
+        state,
+    )
+    
     # Process predictions and move tensors to CPU.
     try:
         for pred in output_dict['preds']:
@@ -494,7 +498,8 @@ def process_images(uploaded_files, video_file, state,
     cmd = {
         "cmd": "launch",
         "output": output_dict,
-        "min_conf_thr_percentile": 10,
+        "min_conf_thr_percentile": 65 if video_file and os.path.basename(video_file) == "family.mp4" else 10,
+        "point_size": 0.0001 if video_file and os.path.basename(video_file) == "family.mp4" else 0.0004,
         "global_conf_thr_value_to_drop_view": 1.5,
         "session_id": session_id,
         "message_id": message_id
@@ -524,7 +529,7 @@ def process_images(uploaded_files, video_file, state,
             # Update loading animation
             dots = loading_dots[loading_idx]
             loading_idx = (loading_idx + 1) % len(loading_dots)
-            status_text = f"Processing {len(filelist)} images...\nModel inference time: {model_forward_time:.2f} sec.\nPreparing visualization{dots}"
+            status_text = f"Processing {len(filelist)} images...\nImage loading and cropping time: {load_time:.2f} sec.\nModel inference time: {model_forward_time:.2f} sec.\nPreparing visualization{dots}"
             yield (
                 gr.update(),
                 gr.update(),
@@ -549,11 +554,11 @@ def process_images(uploaded_files, video_file, state,
     state["urls"].append((share_url, server_id))
 
     final_status = (
-        f"Number of images processed: {len(filelist)}\n"
+        f"{len(filelist)} images @ {image_size} resolution\n"
+        f"Image loading and cropping time: {load_time:.2f} sec\n"
         f"Model inference time: {model_forward_time:.2f} sec\n"
         f"Visualization preparation time: {vis_prep_time:.2f} sec\n"
-        f"Total processing time: {total_time:.2f} sec\n"
-        f"👇 Scroll down to view the 3D reconstruction 👇"
+        f"👇 Scroll down to view the 3D reconstruction"
     )
     
     # Build final visualization header and feedback prompt.
@@ -989,6 +994,13 @@ def create_demo(checkpoint_dir, examples_dir, output_dir, device: torch.device):
                 gallery = gr.Gallery(label="Upload Images of a Scene", columns=6, height="150px", show_download_button=True)
                 video_input.render()
             with gr.Column(scale=1):
+                # Add resolution radio button
+                image_resolution = gr.Radio(
+                    ["512", "224"], 
+                    label="Image Resolution", 
+                    value="512", 
+                    info="Lower resolution (224) gives super fast speed with a small trade-off in quality"
+                )
                 submit_button = gr.Button("Submit", variant="primary", size="lg")
                 status_box = gr.Textbox(label="Processing Speed", interactive=False, lines=5, visible=True)
                 gr.Examples(
@@ -1081,16 +1093,20 @@ def create_demo(checkpoint_dir, examples_dir, output_dir, device: torch.device):
                     )
             raise gr.Error("Failed to handle feedback")
 
-        def process_images_wrapper(uploaded_files, video_file, state):
+        def process_images_wrapper(uploaded_files, video_file, state, image_resolution):
             # Reset is_example flag for direct uploads
             if not state.get("is_example", False):
                 state = state.copy()
                 state["is_example"] = False
+            
+            # Convert image_resolution from string to integer
+            image_size = int(image_resolution)
 
             generator = process_images(uploaded_files, video_file, state,
                                      model, lit_module, device,
                                      global_manager_req_queue, global_manager_resp_queue, 
-                                     output_dir, examples_dir)
+                                     output_dir, examples_dir,
+                                     image_size=image_size)
             
             for output in generator:
                 loading_message, vis_message, feedback_column, viser_iframe, status_box, state = output
@@ -1111,7 +1127,7 @@ def create_demo(checkpoint_dir, examples_dir, output_dir, device: torch.device):
 
         submit_button.click(
             fn=process_images_wrapper,
-            inputs=[gallery, video_input, state],
+            inputs=[gallery, video_input, state, image_resolution],
             outputs=[loading_message, vis_message, feedback_column, viser_iframe, status_box, state, thumbs_up, thumbs_down, thank_you],
         )
 

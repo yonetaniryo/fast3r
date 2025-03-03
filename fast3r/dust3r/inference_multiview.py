@@ -48,10 +48,10 @@ def loss_of_one_batch(
 
     with torch.autocast(**autocast_dict):
         start_time = time.time()
-        preds = model(views, profiling=profiling)
         if profiling:
-            torch.cuda.synchronize(device=device)
-            print(f"model forward time: {time.time() - start_time:.3f}")
+            preds, profiling_info = model(views, profiling=profiling)
+        else:
+            preds = model(views, profiling=profiling)
 
         # loss is supposed to be symmetric
         loss = (
@@ -59,6 +59,9 @@ def loss_of_one_batch(
         )
 
     result = dict(views=views, preds=preds, loss=loss)
+    if profiling:
+        result["profiling_info"] = profiling_info
+    
     return result[ret] if ret else result
 
 
@@ -73,13 +76,24 @@ def inference(multiple_views_in_one_sample, model, device, dtype, verbose=True, 
     if multiple_shapes:  # force bs=1
         batch_size = 1
 
+    # Get the result from loss_of_one_batch
     res = loss_of_one_batch(
         collate_with_cat([tuple(multiple_views_in_one_sample)]), model, None, device, dtype, profiling=profiling
     )
+    
+    # Extract profiling_info before to_cpu if it exists
+    profiling_info = None
+    if profiling and "profiling_info" in res:
+        profiling_info = res.pop("profiling_info")
+    
+    # Process the result without profiling_info
     result.append(to_cpu(res))
-
     result = collate_with_cat(result, lists=multiple_shapes)
-
+    
+    # Return the result with profiling_info if requested
+    if profiling and profiling_info is not None:
+        return result, profiling_info
+    
     return result
 
 
