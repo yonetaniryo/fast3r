@@ -27,5 +27,5 @@ disclosure of security bugs. In those cases, please go through the process
 outlined on that page and do not file a public issue.
 
 ## License
-By contributing to DINOv2, you agree that your contributions will be licensed
+By contributing to Fast3R, you agree that your contributions will be licensed
 under the LICENSE file in the root directory of this source tree.
