@@ -298,7 +298,7 @@ class MultiViewDUSt3RLitModule(LightningModule):
             self.evaluate_reconstruction(views, preds, dataset_name=dataset_name,
                                          use_pts3d_from_local_head=self.eval_use_pts3d_from_local_head,
                                          min_conf_thr_percentile_for_local_alignment_and_icp=85,
-                                         min_conf_thr_percentile_for_metric_cacluation=85)  # use only the very confident points for alignment and use most of the points for metric calculation
+                                         min_conf_thr_percentile_for_metric_cacluation=0)  # use only the very confident points for alignment and use all of the points for metric calculation
 
         del views, preds
         torch.cuda.empty_cache()
