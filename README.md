@@ -1,20 +1,20 @@
 <div align="center">
 
-# ⚡️Fast3R - Towards 3D Reconstruction of 1000+ Images in One Forward Pass
+# ⚡️Fast3R: Towards 3D Reconstruction of 1000+ Images in One Forward Pass
 
 
 ${{\color{Red}\Huge{\textsf{  CVPR\ 2025\ \}}}}\$
 
 
 [![Paper](https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv&logoColor=b31b1b)](https://arxiv.org/abs/2501.13928)
-[![Project Website](https://img.shields.io/badge/Project-Website-4CAF50?logo=googlechrome&logoColor=white)](https://fast3r-3d.github.io/)
+[![Project Website](https://img.shields.io/badge/Fast3R-Website-4CAF50?logo=googlechrome&logoColor=white)](https://fast3r-3d.github.io/)
 [![Gradio Demo](https://img.shields.io/badge/Gradio-Demo-orange?style=flat&logo=Gradio&logoColor=red)](https://fast3r.ngrok.app/)
 [![Hugging Face Model](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue)](https://huggingface.co/jedyang97/Fast3R_ViT_Large_512/)
 </div>
 
 ![Teaser Image](assets/teaser.png)
 
-Official implementation of **Fast3R - Towards 3D Reconstruction of 1000+ Images in One Forward Pass**
+Official implementation of **Fast3R: Towards 3D Reconstruction of 1000+ Images in One Forward Pass**, CVPR 2025
 
 *[Jianing Yang](https://jedyang.com/), [Alexander Sax](https://alexsax.github.io/), [Kevin J. Liang](https://kevinjliang.github.io/), [Mikael Henaff](https://www.mikaelhenaff.net/), [Hao Tang](https://tanghaotommy.github.io/), [Ang Cao](https://caoang327.github.io/), [Joyce Chai](https://web.eecs.umich.edu/~chaijy/), [Franziska Meier](https://fmeier.github.io/), [Matt Feiszli](https://www.linkedin.com/in/matt-feiszli-76b34b/)*
 
