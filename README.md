@@ -3,7 +3,7 @@
 # ⚡️Fast3R - Towards 3D Reconstruction of 1000+ Images in One Forward Pass
 
 
-${{\color{Goldenrod}\Huge{\textsf{  CVPR\ 2025\ \}}}}\$
+${{\color{Red}\Huge{\textsf{  CVPR\ 2025\ \}}}}\$
 
 
 [![Paper](https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv&logoColor=b31b1b)](https://arxiv.org/abs/2501.13928)
