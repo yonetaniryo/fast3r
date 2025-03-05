@@ -86,6 +86,7 @@ To use Fast3R in your own project, you can import the `Fast3R` class from `fast3
 
 ```python
 from fast3r.models.fast3r import Fast3R
+from fast3r.models.multiview_dust3r_module import MultiViewDUSt3RLitModule
 
 # Load the model from Hugging Face
 model = Fast3R.from_pretrained("jedyang97/Fast3R_ViT_Large_512")
