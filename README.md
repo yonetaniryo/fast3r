@@ -148,7 +148,7 @@ python scripts/robustmvd_eval.py
 
 ## License
 
-The code and models are licensed under the [CC BY-NC-SA 4.0 license](LICENSE).
+The code and models are licensed under the [FAIR NC Research License](LICENSE).
 
 ## Contributing
 
