@@ -127,7 +127,7 @@ python scripts/slurm/submit_train.py --nodes=<NODES> --experiment=<EXPERIMENT>
 To evaluate on 3D reconstruction or camera pose estimation tasks, run:
 
 ```bash
-python fast3r/evaluate.py eval=<eval_config>
+python fast3r/eval.py eval=<eval_config>
 ```
 `<eval_config>` can be any of the evaluation configurations in [configs/eval/](configs/eval/). For example:
 - `ablation_recon_better_inference_hp/ablation_recon_better_inference_hp` evaluates the 3D reconstruction on DTU, 7-Scenes and Neural-RGBD datasets.
