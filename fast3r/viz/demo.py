@@ -449,6 +449,7 @@ def process_images(uploaded_files, video_file, state,
         model,
         device,
         dtype=torch.float32,
+        # dtype=torch.bfloat16,
         verbose=True,
         profiling=True,
     )
@@ -1134,7 +1135,7 @@ def create_demo(checkpoint_dir, examples_dir, output_dir, device: torch.device):
     return demo
 
 def main():
-    os.environ["GRADIO_TEMP_DIR"] = "./gradio_tmp_dir" 
+    os.environ["GRADIO_TEMP_DIR"] = "./gradio_tmp_dir"
     parser = argparse.ArgumentParser(description="Fast3R 3D Reconstruction Demo...")
     parser.add_argument("--checkpoint_dir", type=str, default="jedyang97/Fast3R_ViT_Large_512")
     parser.add_argument("--examples_dir", type=str, default="./demo_examples")

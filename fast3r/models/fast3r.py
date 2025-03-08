@@ -316,6 +316,8 @@ class Fast3R(nn.Module,
         encoded_feats, positions, shapes = self._encode_images(views)
         encode_images_end_time = time.time()
         if profiling:
+            torch.cuda.synchronize()
+            encode_images_end_time = time.time()
             encode_time = encode_images_end_time - encode_images_start_time
             profiling_info["encode_images_time"] = encode_time
             print(f"encode_images time: {encode_time}")
@@ -351,9 +353,11 @@ class Fast3R(nn.Module,
 
         # combine all ref images into object-centric representation
         if profiling:
+            torch.cuda.synchronize()
             decoder_start_time = time.time()
         dec_output = self.decoder(encoded_feats, positions, image_ids)
         if profiling:
+            torch.cuda.synchronize()
             decoder_time = time.time() - decoder_start_time
             profiling_info["decoder_time"] = decoder_time
             print(f"decoder time: {decoder_time}")

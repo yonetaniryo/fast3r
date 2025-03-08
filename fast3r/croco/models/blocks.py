@@ -152,17 +152,22 @@ class Attention(nn.Module):
             scale = self.attn_bias_scale
         else:
             scale = self.scale
-            
+
+        # Important: For the fusion Transformer, we forward through the attention with bfloat16 precision
+        # If you are not using this block for the fusion Transformer, you should double check the precision of the input and output
         if self.attn_implementation == "pytorch_naive":
             assert self.attn_mask is None, "attn_mask not supported for pytorch_naive implementation of scaled dot product attention"
             assert self.is_causal is False, "is_causal not supported for pytorch_naive implementation of scaled dot product attention"
-            attn = (q @ k.transpose(-2, -1)) * scale
-            attn = attn.softmax(dim=-1)
-            attn = self.attn_drop(attn)
-
-            x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+            dtype = k.dtype
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                x = (q @ k.transpose(-2, -1)) * scale
+                x = x.softmax(dim=-1)
+                x = self.attn_drop(x)
+            if dtype == torch.float32:  # if input was FP32, cast back to FP32
+                x = x.to(torch.float32)
+            x = (x @ v).transpose(1, 2).reshape(B, N, C)
             x = self.proj(x)
-            x = self.proj_drop(x)
+            x = self.proj_drop(x)  
         elif self.attn_implementation == "flash_attention":
             with torch.nn.attention.sdpa_kernel(SDPBackend.FLASH_ATTENTION):
                 dtype = k.dtype
@@ -175,7 +180,11 @@ class Attention(nn.Module):
                 x = self.proj_drop(x)
         elif self.attn_implementation == "pytorch_auto":
             with torch.nn.attention.sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION,]):
-                x = scaled_dot_product_attention(q, k, v, attn_mask=self.attn_mask, dropout_p=self.dropout_p, is_causal=self.is_causal, scale=scale)
+                dtype = k.dtype
+                with torch.autocast("cuda", dtype=torch.bfloat16):
+                    x = scaled_dot_product_attention(q, k, v, attn_mask=self.attn_mask, dropout_p=self.dropout_p, is_causal=self.is_causal, scale=scale)
+                if dtype == torch.float32:  # if input was FP32, cast back to FP32
+                    x = x.to(torch.float32)
                 x = x.transpose(1, 2).reshape(B, N, C)
                 x = self.proj(x)
                 x = self.proj_drop(x)

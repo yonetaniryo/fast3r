@@ -45,9 +45,11 @@ def loss_of_one_batch(
         autocast_dict["dtype"] = torch.float16
     elif precision in ["bf16-mixed", "bf16-mixed-no-grad-scaling"]:
         autocast_dict["dtype"] = torch.bfloat16
+    elif precision == torch.bfloat16:
+        autocast_dict["dtype"] = torch.bfloat16
+    
 
     with torch.autocast(**autocast_dict):
-        start_time = time.time()
         if profiling:
             preds, profiling_info = model(views, profiling=profiling)
         else:

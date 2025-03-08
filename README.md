@@ -174,3 +174,7 @@ Fast3R is built upon a foundation of remarkable open-source projects. We deeply 
 - [Spann3R](https://hengyiwang.github.io/projects/spanner)
 - [Viser](https://viser.studio/main/)
 - [Lightning-Hydra-Template](https://github.com/ashleve/lightning-hydra-template)
+
+# Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=facebookresearch/fast3r&type=Date)](https://star-history.com/#facebookresearch/fast3r&Date)
