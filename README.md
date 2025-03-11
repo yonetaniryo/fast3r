@@ -140,11 +140,15 @@ To evaluate camera poses on RealEstate10K dataset, run:
 python scripts/fast3r_re10k_pose_eval.py  --subset_file scripts/re10k_test_1800.txt
 ```
 
-To evaluate multi-view depth estimation on Tanks and Temples, ETH-3D, DTU and ScanNet datasets, follow the data download and preparation guide of [robustmvd](https://github.com/lmb-freiburg/robustmvd), install that repo's `requirements.txt` into the current conda environment, and run:
+To evaluate multi-view depth estimation on Tanks and Temples, ETH-3D, DTU, and ScanNet datasets, follow the data download and preparation guide of [robustmvd](https://github.com/lmb-freiburg/robustmvd), install that repo's `requirements.txt` into the current conda environment, and run:
 
 ```bash
 python scripts/robustmvd_eval.py
 ```
+
+## Dataset Preprocessing
+
+Please follow [DUSt3R's data preprocessing instructions](https://github.com/naver/dust3r/tree/main?tab=readme-ov-file#datasets) to prepare the data for training and evaluation. The pre-processed data is compatible with the [multi-view dataloaders](fast3r/dust3r/datasets) in this repo.
 
 ## License
 
