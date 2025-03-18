@@ -193,10 +193,10 @@ python scripts/robustmvd_eval.py
 
 Please follow [DUSt3R's data preprocessing instructions](https://github.com/naver/dust3r/tree/main?tab=readme-ov-file#datasets) to prepare the data for training and evaluation. The pre-processed data is compatible with the [multi-view dataloaders](fast3r/dust3r/datasets) in this repo.
 
+For preprocessing the DTU, 7-Scene, and NRGBD datasets for evaluation, we follow [Spann3r's data processing instructions](https://github.com/HengyiWang/spann3r/blob/main/docs/data_preprocess.md).
+
 ## FAQ
 
-- Q: Preprocessed data for DTU, 7-Scene and NRGBD? ([#36](https://github.com/facebookresearch/fast3r/issues/36))
-  - We follow [Spann3r's data processing instructions](https://github.com/HengyiWang/spann3r/blob/main/docs/data_preprocess.md) to pre-process the three evaluation datasets.
 - Q: `httpcore.ConnectError: All connection attempts failed` when launching the demo?
   - See [#34](https://github.com/facebookresearch/fast3r/issues/34). Download the example videos into a local directory.
 - Q: Data pre-processing for BlendedMVS, `train_list.txt` is missing?
