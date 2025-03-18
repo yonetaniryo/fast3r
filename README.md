@@ -42,6 +42,8 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+Note: Please make sure to NOT install the cuROPE module like in DUSt3R - it would mess up the model's prediction.
+
 <details>
 <summary>Installation Troubleshooting</summary>
 
@@ -191,6 +193,24 @@ python scripts/robustmvd_eval.py
 
 Please follow [DUSt3R's data preprocessing instructions](https://github.com/naver/dust3r/tree/main?tab=readme-ov-file#datasets) to prepare the data for training and evaluation. The pre-processed data is compatible with the [multi-view dataloaders](fast3r/dust3r/datasets) in this repo.
 
+## FAQ
+
+- Q: Preprocessed data for DTU, 7-Scene and NRGBD? ([#36](https://github.com/facebookresearch/fast3r/issues/36))
+  - We follow [Spann3r's data processing instructions](https://github.com/HengyiWang/spann3r/blob/main/docs/data_preprocess.md) to pre-process the three evaluation datasets.
+- Q: `httpcore.ConnectError: All connection attempts failed` when launching the demo?
+  - See [#34](https://github.com/facebookresearch/fast3r/issues/34). Download the example videos into a local directory.
+- Q: Data pre-processing for BlendedMVS, `train_list.txt` is missing?
+  - See [#33](https://github.com/facebookresearch/fast3r/issues/33).
+- Q: Loading checkpoint to fine-tune Fast3R?
+  - See [#25](https://github.com/facebookresearch/fast3r/issues/25)
+- Q: Running demo on Windows? (TypeError: cannot pickle '_thread.RLock' object)
+  - See [#28](https://github.com/facebookresearch/fast3r/issues/28). It seems that some more work is needed to make the demo compatible with Windows - we hope the community could contribute a PR!
+- Q: Completely messed-up point cloud output?
+  - See [#21](https://github.com/facebookresearch/fast3r/issues/21). Please make sure the cuROPE module is NOT installed.
+- Q: My GPU doesn't support FlashAttention?
+  - See [#17](https://github.com/facebookresearch/fast3r/issues/17). Use `attn_implementation=pytorch_auto` option instead.
+- Q: `TypeError: Fast3R.__init__() missing 3 required positional arguments: 'encoder_args', 'decoder_args', and 'head_args'`
+  - See See [#7](https://github.com/facebookresearch/fast3r/issues/7). It is caused by a networking issue with downloading the model from Huggingface in some countries (e.g., China) - please pre-download the model checkpoint with a working networking configuration, and use a local path to load the model instead.
 ## License
 
 The code and models are licensed under the [FAIR NC Research License](LICENSE).
