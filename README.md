@@ -35,6 +35,7 @@ conda install pytorch torchvision torchaudio pytorch-cuda=12.4 nvidia/label/cuda
 # install PyTorch3D from source (the compilation will take a while)
 # export MAX_JOBS=6 # un-comment this if your machine is low on RAM (e.g., 16GB) when compiling PyTorch3D
 pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable"
+# unset MAX_JOBS
 
 # install requirements
 pip install -r requirements.txt
