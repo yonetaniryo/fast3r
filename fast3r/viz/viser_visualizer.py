@@ -225,7 +225,9 @@ def start_visualization(output, min_conf_thr_percentile=10, global_conf_thr_valu
         gui_global_conf_threshold = server.gui.add_slider("High/Low Conf Threshold", min=1.0, max=12.0, step=0.1, initial_value=global_conf_thr_value_to_drop_view)
         gui_min_conf_percentile = server.gui.add_slider("Per-View Conf Percentile", min=0, max=100, step=1, initial_value=min_conf_thr_percentile)
 
-    button_render_gif = server.gui.add_button("Render a GIF")
+    with server.gui.add_folder("Export Options", expand_by_default=False):
+        button_render_gif = server.gui.add_button("Render a GIF")
+        button_download_ply = server.gui.add_button("Download PLY")  
 
     @gui_next_frame.on_click
     def next_frame(_):
