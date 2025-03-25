@@ -164,6 +164,95 @@ def update_points_filtering(server, frame_data_list, gui_timestep, gui_min_conf_
                 
         server.flush()
 
+# ---------------Helper Functions to save PLY--------------------
+def collect_visible_points(frame_data_list, current_timestep):
+    # collects all visible points up to the current timestep t
+    points = []
+    colors = []
+    for i in range(current_timestep + 1):
+        fd = frame_data_list[i]
+        
+        # Global points
+        if fd['point_node_global'].visible and len(fd['point_node_global'].points) > 0:
+            pts = fd['point_node_global'].points
+            clr = fd['point_node_global'].colors
+            
+            # Ensure colors are correctly processed
+            if clr.dtype == np.float32:
+                # If colors are in float format (likely normalized)
+                clr = np.clip((clr + 1) * 127.5, 0, 255).astype(np.uint8)
+            
+            points.append(pts)
+            colors.append(clr)
+        
+        # Local points
+        if fd['point_node_local'].visible and len(fd['point_node_local'].points) > 0:
+            pts = fd['point_node_local'].points
+            clr = fd['point_node_local'].colors
+            
+            # Ensure colors are correctly processed
+            if clr.dtype == np.float32:
+                # If colors are in float format (likely normalized)
+                clr = np.clip((clr + 1) * 127.5, 0, 255).astype(np.uint8)
+            
+            points.append(pts)
+            colors.append(clr)
+    
+    if not points:
+        return None, None
+    return np.concatenate(points), np.concatenate(colors)
+
+def safe_color_conversion(colors):
+    # If colors are in float format (normalized)
+    if colors.dtype in [np.float32, np.float64]:
+        # Handle two common normalization ranges
+        if colors.min() >= 0 and colors.max() <= 1:
+            # 0 to 1 range
+            colors_uint8 = np.clip(colors * 255, 0, 255).astype(np.uint8)
+        elif colors.min() >= -1 and colors.max() <= 1:
+            # -1 to 1 range (common in some frameworks)
+            colors_uint8 = np.clip((colors + 1) * 127.5, 0, 255).astype(np.uint8)
+        else:
+            # Unexpected range, try linear scaling
+            colors_min, colors_max = colors.min(), colors.max()
+            colors_uint8 = np.clip(
+                ((colors - colors_min) / (colors_max - colors_min)) * 255, 
+                0, 255
+            ).astype(np.uint8)
+    else:
+        # Already in uint8 or similar integer format
+        colors_uint8 = np.clip(colors, 0, 255).astype(np.uint8)
+    
+    return colors_uint8
+
+def generate_ply_bytes(points, colors):
+    # generate binary ply object bytes from the point cloud and their color
+    header = [
+        "ply",
+        "format binary_little_endian 1.0",
+        f"element vertex {len(points)}",
+        "property float x",
+        "property float y",
+        "property float z",
+        "property uchar red",
+        "property uchar green",
+        "property uchar blue",
+        "end_header",
+    ]
+    header = "\n".join(header).encode("ascii") + b"\n"
+    
+    colors_uint8 = safe_color_conversion(colors)
+
+    # Pack data into binary format
+    data = np.empty(len(points), dtype=[
+        ("xyz", np.float32, 3),
+        ("rgb", np.uint8, 3),
+    ])
+    data["xyz"] = points
+    data["rgb"] = colors_uint8
+    
+    return header + data.tobytes()
+
 # ----------------- Playback Loop -----------------
 def playback_loop(gui_playing, gui_timestep, num_frames, gui_framerate):
     while True:
@@ -225,7 +314,9 @@ def start_visualization(output, min_conf_thr_percentile=10, global_conf_thr_valu
         gui_global_conf_threshold = server.gui.add_slider("High/Low Conf Threshold", min=1.0, max=12.0, step=0.1, initial_value=global_conf_thr_value_to_drop_view)
         gui_min_conf_percentile = server.gui.add_slider("Per-View Conf Percentile", min=0, max=100, step=1, initial_value=min_conf_thr_percentile)
 
-    button_render_gif = server.gui.add_button("Render a GIF")
+    with server.gui.add_folder("Export Options", expand_by_default=False):
+        button_render_gif = server.gui.add_button("Render a GIF")
+        button_download_ply = server.gui.add_button("Download PLY")  
 
     @gui_next_frame.on_click
     def next_frame(_):
@@ -598,6 +689,29 @@ def start_visualization(output, min_conf_thr_percentile=10, global_conf_thr_valu
             gui_playing.value = original_playing
         except Exception as e:
             print(f"Error while rendering GIF: {e}")
+
+    @button_download_ply.on_click
+    def _(event: viser.GuiEvent):
+        client = event.client
+        if client is None:
+            print("No client connected; skipping download.")
+            return
+        
+        # Get current state
+        current_timestep = int(gui_timestep.value)
+        
+        # Collect visible points
+        points, colors = collect_visible_points(frame_data_list, current_timestep)
+        if points is None:
+            print("No points to save.")
+            return
+        
+        # Generate PLY and send to client
+        try:
+            ply_bytes = generate_ply_bytes(points, colors)
+            client.send_file_download("pointcloud.ply", ply_bytes)
+        except Exception as e:
+            print(f"Failed to generate PLY: {e}")
 
     public_url = server.request_share_url()
     return server
