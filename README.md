@@ -167,6 +167,11 @@ To submit a multi-node training job with Slurm, use the following command:
 python scripts/slurm/submit_train.py --nodes=<NODES> --experiment=<EXPERIMENT>
 ```
 
+After training, you can run the demo with a lightning checkpoint with the following command:
+```bash
+python fast3r/viz/demo.py --is_lightning_checkpoint --checkpoint_dir=/path/to/super_long_training_999999
+```
+
 ## Evaluation
 
 To evaluate on 3D reconstruction or camera pose estimation tasks, run:
