@@ -15,21 +15,17 @@ import os
 import time
 import shutil
 import torch
-import cv2
 import gradio as gr
 import multiprocessing as mp
 from rich.console import Console
 import argparse
 import json
-import glob
-import numpy as np
 
-from fast3r.models.fast3r import Fast3R
-from fast3r.models.multiview_dust3r_module import MultiViewDUSt3RLitModule
 from fast3r.dust3r.inference_multiview import inference
 from fast3r.dust3r.utils.image import load_images
 from fast3r.viz.viser_visualizer import start_visualization
 from fast3r.viz.video_utils import extract_frames_from_video
+from fast3r.utils.checkpoint_utils import load_model
 
 # Add these global variables at the module level, after imports
 global_manager_req_queue = None
@@ -249,29 +245,6 @@ def start_manager():
     manager_process = mp.Process(target=ViserServerManager(req_queue, resp_queue).run)
     manager_process.start()
     return req_queue, resp_queue, manager_process
-
-
-# -------------------------------
-# load_model
-# -------------------------------
-def load_model(checkpoint_dir, device: torch.device):
-    """
-    Loads the model from the checkpoint.
-
-    Returns: model, lit_module.
-    """
-    # Load the model directly from pretrained
-    model = Fast3R.from_pretrained(checkpoint_dir)
-    model = model.to(device)
-    
-    # Create a lightweight lit_module wrapper for the model
-    lit_module = MultiViewDUSt3RLitModule.load_for_inference(model)
-
-    # Set model to evaluation mode
-    model.eval()
-    lit_module.eval()
-
-    return model, lit_module
 
 
 # -------------------------------
@@ -765,7 +738,7 @@ def handle_feedback(feedback_type, timestamp, output_dir):
 # -------------------------------
 # create_demo
 # -------------------------------
-def create_demo(checkpoint_dir, examples_dir, output_dir, device: torch.device):
+def create_demo(checkpoint_dir, examples_dir, output_dir, device: torch.device, is_lightning_checkpoint=False):
     """
     Creates the Gradio demo interface.
     
@@ -784,7 +757,7 @@ def create_demo(checkpoint_dir, examples_dir, output_dir, device: torch.device):
     
     global_manager_req_queue, global_manager_resp_queue, manager_process = start_manager()
 
-    model, lit_module = load_model(checkpoint_dir, device=device)
+    model, lit_module = load_model(checkpoint_dir, device=device, is_lightning_checkpoint=is_lightning_checkpoint)
 
     # Load examples
     # examples = []
@@ -1141,13 +1114,16 @@ def main():
     parser.add_argument("--examples_dir", type=str, default="./demo_examples")
     parser.add_argument("--output_dir", type=str, default="./demo_outputs",
                         help="Directory to store processed scenes with feedback")
+    parser.add_argument("--is_lightning_checkpoint", action="store_true", default=False,
+                        help="Whether the checkpoint is from Lightning training (default: False)")
     args = parser.parse_args()
 
     for folder in ['good', 'bad', 'no_feedback', 'example_scenes']:
         os.makedirs(os.path.join(args.output_dir, folder), exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    demo = create_demo(args.checkpoint_dir, args.examples_dir, args.output_dir, device=device)
+    demo = create_demo(args.checkpoint_dir, args.examples_dir, args.output_dir, device=device, 
+                       is_lightning_checkpoint=args.is_lightning_checkpoint)
     demo.queue(default_concurrency_limit=2)
     demo.launch(share=True)
 
