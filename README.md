@@ -214,7 +214,7 @@ For preprocessing the DTU, 7-Scene, and NRGBD datasets for evaluation, we follow
   - See [#28](https://github.com/facebookresearch/fast3r/issues/28). It seems that some more work is needed to make the demo compatible with Windows - we hope the community could contribute a PR!
 - Q: Completely messed-up point cloud output?
   - See [#21](https://github.com/facebookresearch/fast3r/issues/21). Please make sure the cuROPE module is NOT installed.
-- Q: My GPU doesn't support FlashAttention?
+- Q: My GPU doesn't support FlashAttention / `No available kernel. Aborting execution`?
   - See [#17](https://github.com/facebookresearch/fast3r/issues/17). Use `attn_implementation=pytorch_auto` option instead.
 - Q: `TypeError: Fast3R.__init__() missing 3 required positional arguments: 'encoder_args', 'decoder_args', and 'head_args'`
   - See See [#7](https://github.com/facebookresearch/fast3r/issues/7). It is caused by a networking issue with downloading the model from Huggingface in some countries (e.g., China) - please pre-download the model checkpoint with a working networking configuration, and use a local path to load the model instead.
