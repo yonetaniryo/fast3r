@@ -17,10 +17,6 @@ RUN apt install -y libgl1-mesa-glx libglib2.0-0 libsm6 libxrender1 libxext6
 
 WORKDIR /
 RUN git clone --depth 1 https://github.com/facebookresearch/fast3r
-RUN git clone --depth 1 --branch stable https://github.com/facebookresearch/pytorch3d.git
-
-WORKDIR /pytorch3d
-RUN pip install -e .
 
 WORKDIR /fast3r
 RUN pip install -r requirements.txt
