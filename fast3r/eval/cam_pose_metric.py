@@ -11,7 +11,7 @@
 import numpy as np
 import torch
 
-from pytorch3d.transforms import so3_relative_angle
+from fast3r.utils.so3_utils import so3_relative_angle
 
 
 def camera_to_rel_deg(pred_cameras_c2w, gt_cameras_c2w, device, batch_size):

@@ -32,11 +32,6 @@ conda activate fast3r
 # install PyTorch (adjust cuda version according to your system)
 conda install pytorch torchvision torchaudio pytorch-cuda=12.4 nvidia/label/cuda-12.4.0::cuda-toolkit -c pytorch -c nvidia
 
-# install PyTorch3D from source (the compilation will take a while)
-# export MAX_JOBS=6 # un-comment this if your machine is low on RAM (e.g., 16GB) when compiling PyTorch3D
-pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable"
-# unset MAX_JOBS
-
 # install requirements
 pip install -r requirements.txt
 
@@ -44,18 +39,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-Note: Please make sure to NOT install the cuROPE module like in DUSt3R - it would mess up the model's prediction.
-
-<details>
-<summary>Installation Troubleshooting</summary>
-
-If you encounter the error `fatal error: cuda_runtime.h: No such file or directory` when installing PyTorch3D, try setting `CUDA_HOME` before installing PyTorch3D:
-
-```bash
-export CUDA_HOME=/usr/local/cuda-12.4
-pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable"
-```
-</details>
+Note: Please make sure to NOT install the cuROPE module like in DUSt3R - it would mess up Fast3R's prediction.
 
 ## Demo
 
