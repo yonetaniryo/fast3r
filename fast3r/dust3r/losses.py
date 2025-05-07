@@ -567,6 +567,179 @@ class Regr3DMultiviewV3(Criterion, MultiLoss):
 
         return Sum(*total_loss), details
 
+class Regr3DMultiviewV4(Criterion, MultiLoss):
+    """Ensure that all 3D points are correct for multiple views.
+    The point clouds from all views are concatenated together for normalization,
+    but loss is calculated separately for each view.
+    This version supports batch size > 1.
+    """
+
+    def __init__(self, criterion, norm_mode="avg_dis", gt_scale=False, local_scale_consistent=False):
+        super().__init__(criterion)
+        self.norm_mode = norm_mode
+        self.gt_scale = gt_scale
+        self.local_scale_consistent = local_scale_consistent
+
+    def get_pts3d_from_views(self, gt_views, pred_views, dist_clip=None, local=False):
+        """Get point clouds and valid masks for multiple views."""
+        gt_pts_list = []
+        pr_pts_list = []
+        valid_mask_list = []
+
+        if not local:  # compute the inverse transformation for the anchor view (first view)
+            inv_matrix_anchor = inv(gt_views[0]["camera_pose"].float())
+
+        for gt_view, pred_view in zip(gt_views, pred_views):
+            if local:
+                # Rotate GT points to align with the local camera origin for supervision
+                inv_matrix_local = inv(gt_view["camera_pose"].float())
+                gt_pts = geotrf(inv_matrix_local, gt_view["pts3d"])  # Transform GT points to local view's origin
+                pr_pts = pred_view.get("pts3d_local")  # Local predicted points
+            else:
+                # Use the anchor view (first view) transformation for global loss
+                gt_pts = geotrf(inv_matrix_anchor, gt_view["pts3d"])  # Transform GT points to anchor view
+                pr_pts = pred_view.get("pts3d_in_other_view")  # Predicted points in anchor view
+
+            valid_gt = gt_view["valid_mask"].clone()
+
+            if dist_clip is not None:
+                dis = gt_pts.norm(dim=-1)
+                valid_gt &= dis <= dist_clip
+
+            gt_pts_list.append(gt_pts)
+            pr_pts_list.append(pr_pts)
+            valid_mask_list.append(valid_gt)
+
+        return gt_pts_list, pr_pts_list, valid_mask_list
+
+    def normalize_pointcloud_from_views(self, pts_list, norm_mode="avg_dis", valid_list=None):
+        """Normalize point clouds from multiple views, excluding invalid points from normalization."""
+        assert all(pts.ndim >= 3 and pts.shape[-1] == 3 for pts in pts_list)
+        
+        norm_mode, dis_mode = norm_mode.split("_")
+        # Concatenate all point clouds and valid masks if provided
+        all_pts = torch.cat(pts_list, dim=1)
+        all_pts = all_pts.view(all_pts.shape[0], -1, 3)
+        if valid_list is not None:
+            all_valid = torch.cat(valid_list, dim=1)
+            all_valid = all_valid.view(all_valid.shape[0], -1)
+            all_pts[all_valid == 0] = float('nan') # mask out invalid points with nan
+            
+            # valid_pts = all_pts[all_valid]  # Keep only valid points for norm calculation
+        valid_pts = all_pts
+
+        # Compute the distance to the origin for valid points
+        dis = valid_pts.norm(dim=-1)
+
+        # Apply distance transformation based on dis_mode
+        if dis_mode == "dis":
+            pass  # Do nothing
+        elif dis_mode == "log1p":
+            dis = torch.log1p(dis)
+        elif dis_mode == "warp-log1p":
+            log_dis = torch.log1p(dis)
+            warp_factor = log_dis / dis.clip(min=1e-8)
+            all_pts = all_pts * warp_factor.view(-1, 1)  # Warp the points with the warp factor
+            dis = log_dis  # The final distance is now the log-transformed distance
+        else:
+            raise ValueError(f"Unsupported distance mode: {dis_mode}")
+
+        # Apply different normalization modes
+        if norm_mode == "avg":
+            norm_factor = dis.nanmean(dim=-1)   # Compute mean distance of valid points
+        elif norm_mode == "median":
+            norm_factor = dis.nanmedian(dim=-1)  # Compute median distance of valid points
+        else:
+            raise ValueError(f"Unsupported normalization mode: {norm_mode}")
+
+        norm_factor = norm_factor.clip(min=1e-8)  # Prevent division by zero
+
+        # Normalize all point clouds
+        normalized_pts = [pts / norm_factor.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+                          for pts in pts_list]
+
+        return normalized_pts, norm_factor.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+
+    def normalize_pointcloud_per_view(self, pts_list, norm_mode="avg_dis", valid_list=None):
+        """Normalize point clouds on a per-view basis."""
+        norm_mode, dis_mode = norm_mode.split("_")
+
+        normed_pts_list = []
+        for pts, valid in zip(pts_list, valid_list):
+            valid_pts = pts.clone()
+            valid_pts = valid_pts.view(valid_pts.shape[0], -1, 3)
+            if valid is not None:
+                valid = valid.view(valid.shape[0], -1)
+                valid_pts[valid == 0] = float('nan') # mask out invalid with nan
+            dis = valid_pts.norm(dim=-1)
+
+            # Apply distance transformation based on dis_mode
+            if dis_mode == "dis":
+                pass  # Do nothing
+            elif dis_mode == "log1p":
+                dis = torch.log1p(dis)
+            elif dis_mode == "warp-log1p":
+                log_dis = torch.log1p(dis)
+                warp_factor = log_dis / dis.clip(min=1e-8)
+                pts = pts * warp_factor.view(-1, 1)  # Warp the points with the warp factor
+                dis = log_dis  # The final distance is now the log-transformed distance
+            else:
+                raise ValueError(f"Unsupported distance mode: {dis_mode}")
+
+            if norm_mode == "avg":
+                norm_factor = dis.nanmean(dim=-1)  # Per-view normalization
+            elif norm_mode == "median":
+                norm_factor = dis.nanmedian(dim=-1)
+            else:
+                raise ValueError(f"Unsupported normalization mode: {norm_mode}")
+
+            norm_factor = norm_factor.clip(min=1e-8)  # Avoid division by zero
+
+            normed_pts_list.append(pts / norm_factor.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1))
+
+        return normed_pts_list
+
+    def compute_loss(self, gts, preds, **kw):
+        total_loss = []
+        details = {}
+        self_name = "Regr3DMultiviewV3"
+
+        # Compute loss for pts3d_in_other_view (global loss)
+        gt_pts_list, pr_pts_list, valid_mask_list = self.get_pts3d_from_views(gts, preds, **kw)
+
+        if self.norm_mode:
+            pr_pts_list, pr_norm_factor  = self.normalize_pointcloud_from_views(pr_pts_list, self.norm_mode, valid_mask_list)
+            if not self.gt_scale:
+                gt_pts_list, gt_norm_factor = self.normalize_pointcloud_from_views(gt_pts_list, self.norm_mode, valid_mask_list)
+
+        # Compute loss for each view in global coordinate system
+        for i, (gt_pts, pr_pts, valid_mask) in enumerate(zip(gt_pts_list, pr_pts_list, valid_mask_list)):
+            loss = self.criterion(pr_pts[valid_mask], gt_pts[valid_mask])
+            total_loss.append((loss, valid_mask, "global"))
+            details[self_name + f"_pts3d_loss_global/{i:02d}"] = float(loss.mean())
+
+        # Check if local loss is needed (i.e., `pts3d_local` and `conf_local` exist in preds)
+        if "pts3d_local" in preds[0]:
+            # Compute loss for pts3d_local (local loss)
+            gt_pts_list_local, pr_pts_list_local, valid_mask_list_local = self.get_pts3d_from_views(gts, preds, local=True, **kw)
+
+            if not self.local_scale_consistent or not self.norm_mode:
+                # Normalize per-view for local coordinate system
+                pr_pts_list_local = self.normalize_pointcloud_per_view(pr_pts_list_local, self.norm_mode, valid_mask_list_local)
+                if not self.gt_scale:
+                    gt_pts_list_local = self.normalize_pointcloud_per_view(gt_pts_list_local, self.norm_mode, valid_mask_list_local)
+            else:
+                pr_pts_list_local = [pts/pr_norm_factor for pts in pr_pts_list_local]
+                if not self.gt_scale:
+                    gt_pts_list_local = [pts/gt_norm_factor for pts in gt_pts_list_local]
+
+            # Compute loss for each view in its local coordinate system
+            for i, (gt_pts, pr_pts, valid_mask) in enumerate(zip(gt_pts_list_local, pr_pts_list_local, valid_mask_list_local)):
+                loss_local = self.criterion(pr_pts[valid_mask], gt_pts[valid_mask])
+                total_loss.append((loss_local, valid_mask, "local"))
+                details[self_name + f"_pts3d_loss_local/{i:02d}"] = float(loss_local.mean())
+
+        return Sum(*total_loss), details
 
 class ConfLossMultiview(MultiLoss):
     """Weighted regression by learned confidence for multiple views.

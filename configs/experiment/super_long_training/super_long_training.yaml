@@ -68,7 +68,7 @@ model:
   train_criterion:
     _target_: fast3r.dust3r.losses.ConfLossMultiviewV2
     pixel_loss:
-      _target_: fast3r.dust3r.losses.Regr3DMultiviewV3
+      _target_: fast3r.dust3r.losses.Regr3DMultiviewV4
       criterion:
         _target_: fast3r.dust3r.losses.L21Loss
       norm_mode: avg_dis
@@ -77,7 +77,7 @@ model:
   validation_criterion:
     _target_: fast3r.dust3r.losses.ConfLossMultiviewV2
     pixel_loss:
-      _target_: fast3r.dust3r.losses.Regr3DMultiviewV3
+      _target_: fast3r.dust3r.losses.Regr3DMultiviewV4
       criterion:
         _target_: fast3r.dust3r.losses.L21Loss
       norm_mode: avg_dis
