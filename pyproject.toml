@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Ryo Yonetani", email = "yonetani.vision@gmail.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "deepspeed>=0.16.9",
     "einops>=0.8.1",
